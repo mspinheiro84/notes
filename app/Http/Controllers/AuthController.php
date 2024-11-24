@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -14,15 +15,15 @@ class AuthController extends Controller
 
     public function loginSubmit(Request $request)
     {
-        //form validation
+        // form validation
 
         $request->validate(
-            //rules
+            // rules
             [
                 'text_username' => 'required|email',
                 'text_password' => 'required|min:6|max:16',
             ],
-            //error messages
+            // error messages
             [
                 'text_username.required' => 'O username é obrigatório',
                 'text_username.email' => 'O username deve ser um e-mail válido',
@@ -32,19 +33,42 @@ class AuthController extends Controller
             ]
         );
 
-        //get user input
+        // get user input
         $username = $request->input('text_username');
         $password = $request->input('text_password');
 
-        //test database connection
-        try {
-            DB::connection()->getPdo();
-            echo "Connection is OK!";
-        } catch (\PDOException $e) {
-            echo "Connectin failed: " . $e->getMessage();
+        // check if user exists
+        $user = User::where('username', $username)
+                        ->where('deleted_at', NULL)
+                        ->first();
+        if (!$user) {
+            return redirect()
+                        ->back()
+                        ->withInput()
+                        ->with('loginError', 'username ou password incorretos.');
         }
 
-        echo "FIM!";
+        // check if password is correct
+        if (!password_verify($password, $user->password)) {
+            return redirect()
+                        ->back()
+                        ->withInput()
+                        ->with('loginError', 'username ou password incorretos.');
+        }
+
+        // update last login
+        $user->last_login = date('Y-m-d H:i:s');
+        $user->save();
+
+        // login user
+        session([
+            'user' => [
+                'id' => $user->id,
+                'username' => $user->username
+            ]
+        ]);
+
+        echo "LOGIN COM SUCESSO!";
     }
 
     public function logout()
